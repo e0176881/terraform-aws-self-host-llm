@@ -2,7 +2,7 @@
 
 # ALB
 resource "aws_lb" "ow" {
-  name               = "${var.prefix}-alb"
+  name               = "${var.prefix}-${var.open_webui_domain_route53_zone}-alb"
   load_balancer_type = "application"
   internal           = false
 
@@ -14,7 +14,7 @@ resource "aws_lb" "ow" {
 
 # target group (attachement not required, is defined in ECS Fargate)
 resource "aws_lb_target_group" "ow_http" {
-  name             = var.prefix
+  name             = "${var.prefix}-${var.open_webui_domain_route53_zone}"
   port             = var.open_webui_port
   protocol         = "HTTP"
   protocol_version = "HTTP1"
@@ -33,12 +33,12 @@ resource "aws_lb_target_group" "ow_http" {
     enabled             = true
     healthy_threshold   = 5
     unhealthy_threshold = 2
-    interval            = 30
+    interval            = 300
     matcher             = 200
     path                = "/"
     port                = "traffic-port"
     protocol            = "HTTP"
-    timeout             = 5
+    timeout             = 60
   }
 }
 
@@ -59,7 +59,7 @@ resource "aws_lb_listener" "ow_http" {
 
 # SG for open webui public facing ALB
 resource "aws_security_group" "open_webui_alb_sg" {
-  name        = "open-webui-alb-sg"
+  name        = "${var.open_webui_domain_route53_zone}-open-webui-alb-sg"
   description = "Security group for external facing open webui ALB"
   vpc_id      = var.vpc_id
 }

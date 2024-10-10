@@ -1,4 +1,5 @@
 module "open_webui_service" {
+  for_each = local.requests_to_map
   source = "./modules/open-webui-service"
 
   region = var.region
@@ -16,7 +17,7 @@ module "open_webui_service" {
   open_webui_task_count          = var.open_webui_task_count
   open_webui_port                = var.open_webui_port
   open_webui_image_url           = var.open_webui_image_url
-  open_webui_domain              = var.open_webui_domain
-  open_webui_domain_route53_zone = var.open_webui_domain_route53_zone
-  open_webui_domain_ssl_cert_arn = var.open_webui_domain_ssl_cert_arn
+  open_webui_domain              = each.value.sub_domain
+  open_webui_domain_route53_zone = each.value.zone_id
+  open_webui_domain_ssl_cert_arn = each.value.acm
 }

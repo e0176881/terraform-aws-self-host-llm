@@ -148,3 +148,10 @@ variable "open_webui_domain_ssl_cert_arn" {
   type        = string
   default     = ""
 }
+
+variable "requests" {
+  default     = []
+  description = "List of requests"
+  type        = list(map(string))
+}
+
