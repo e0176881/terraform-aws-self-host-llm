@@ -2,7 +2,7 @@
 
 # ECS Cluster
 resource "aws_ecs_cluster" "open_webui" {
-  name = "${var.prefix}-ecs"
+  name = "${var.prefix}-${var.open_webui_domain_route53_zone}-ecs"
   configuration {
     execute_command_configuration {
       logging = "DEFAULT"
@@ -20,7 +20,7 @@ resource "aws_ecs_cluster" "open_webui" {
 }
 
 resource "aws_service_discovery_http_namespace" "open_webui" {
-  name        = var.prefix
+  name        = "${var.prefix}-${var.open_webui_domain_route53_zone}"
   description = "open-webui"
 }
 
@@ -31,7 +31,7 @@ resource "aws_ecs_cluster_capacity_providers" "open_webui" {
 
 # ECS Task execuction role
 resource "aws_iam_role" "open_webui_iamr" {
-  name               = "${var.prefix}-iamr"
+  name               = "${var.prefix}-${var.open_webui_domain_route53_zone}-iamr"
   assume_role_policy = data.aws_iam_policy_document.open_webui_ecs_iamr_assume.json
 }
 
@@ -54,7 +54,7 @@ resource "aws_iam_role_policy_attachment" "open_webui_ecs_iam_policy" {
 
 # Fargate task def
 resource "aws_ecs_task_definition" "open_webui" {
-  family             = "${var.prefix}-task-def"
+  family             = "${var.prefix}-${var.open_webui_domain_route53_zone}-task-def"
   cpu                = var.open_webui_task_cpu
   memory             = var.open_webui_task_mem
   execution_role_arn = aws_iam_role.open_webui_iamr.arn
@@ -68,7 +68,7 @@ resource "aws_ecs_task_definition" "open_webui" {
 
   container_definitions = jsonencode([
     {
-      "name" : "${var.prefix}-ctn",
+      "name" : "${var.prefix}-${var.open_webui_domain_route53_zone}-ctn",
       "image" : var.open_webui_image_url,
       "cpu" : 0,
       "portMappings" : [
@@ -89,12 +89,21 @@ resource "aws_ecs_task_definition" "open_webui" {
         {
           "name" : "OLLAMA_BASE_URL",
           "value" : var.llm_service_endpoint
-        }
+        },
+        {
+          "name" : "AZURE_OPENAI_API_KEY",
+          "value" : var.llm_service_endpoint
+        },
+        {
+          "name" : "AZURE_OPENAI_API_KEY",
+          "value" : var.llm_service_endpoint
+        },
+
       ],
       "environmentFiles" : [],
       "mountPoints" : [
         {
-          "sourceVolume" : "${var.prefix}-vol",
+          "sourceVolume" : "${var.prefix}-${var.open_webui_domain_route53_zone}-vol",
           "containerPath" : local.open_webui.data_dir,
           "readOnly" : false
         }
@@ -104,7 +113,7 @@ resource "aws_ecs_task_definition" "open_webui" {
       "logConfiguration" : {
         "logDriver" : "awslogs",
         "options" : {
-          "awslogs-group" : "/ecs/${var.prefix}",
+          "awslogs-group" : "/ecs/${var.prefix}-${var.open_webui_domain_route53_zone}",
           "awslogs-region" : var.region,
           "awslogs-stream-prefix" : "ecs"
         },
@@ -127,7 +136,53 @@ resource "aws_ecs_task_definition" "open_webui" {
       "logConfiguration" : {
         "logDriver" : "awslogs",
         "options" : {
-          "awslogs-group" : "/ecs/ecs-${var.prefix}-aws-otel-sidecar-collector",
+          "awslogs-group" : "/ecs/ecs-${var.prefix}-${var.open_webui_domain_route53_zone}-aws-otel-sidecar-collector",
+          "awslogs-region" : var.region,
+          "awslogs-stream-prefix" : "ecs"
+        },
+        "secretOptions" : []
+      },
+      "systemControls" : []
+    },
+    {
+      "name" : "litellm",
+      "image" : "orsonoh93/litellm:v0.1",
+      "cpu" : 0,
+      "portMappings" : [
+        {
+          "name" : "litellm-tcp",
+          "containerPort" : 4000,
+          "hostPort" : 4000,
+          "protocol" : "tcp",
+          "appProtocol" : "http"
+        }
+      ],
+      "essential" : true,
+      "mountPoints" : [],
+      "command": [
+        "--config",
+        "/app/config.yaml",
+        "--detailed_debug"
+      ],
+      "environment" : [
+        {
+          "name": "AZURE_API_KEY",
+          "value": "xxx"
+        },
+        {
+          "name": "AZURE_API_BASE",
+          "value": "xxxx"
+        },
+        {
+          "name": "AZURE_API_VERSION",
+          "value": "xxxx"
+        }
+      ],
+      "volumesFrom" : [],
+      "logConfiguration" : {
+        "logDriver" : "awslogs",
+        "options" : {
+          "awslogs-group" : "/ecs/ecs-${var.prefix}-${var.open_webui_domain_route53_zone}-litellm",
           "awslogs-region" : var.region,
           "awslogs-stream-prefix" : "ecs"
         },
@@ -138,7 +193,7 @@ resource "aws_ecs_task_definition" "open_webui" {
   ])
 
   volume {
-    name = "${var.prefix}-vol"
+    name = "${var.prefix}-${var.open_webui_domain_route53_zone}-vol"
     efs_volume_configuration {
       file_system_id = aws_efs_file_system.open_webui.id
       root_directory = "/"
@@ -148,20 +203,26 @@ resource "aws_ecs_task_definition" "open_webui" {
 
 # CW Log group for ECS task
 resource "aws_cloudwatch_log_group" "open_webui" {
-  name              = "/ecs/${var.prefix}"
+  name              = "/ecs/${var.prefix}-${var.open_webui_domain_route53_zone}"
   retention_in_days = 365
   skip_destroy      = false
 }
 
 resource "aws_cloudwatch_log_group" "open_webui_otel_sidecar" {
-  name              = "/ecs/ecs-${var.prefix}-aws-otel-sidecar-collector"
+  name              = "/ecs/ecs-${var.prefix}-${var.open_webui_domain_route53_zone}-aws-otel-sidecar-collector"
+  retention_in_days = 365
+  skip_destroy      = false
+}
+
+resource "aws_cloudwatch_log_group" "open_webui_litellm" {
+  name              = "/ecs/ecs-${var.prefix}-${var.open_webui_domain_route53_zone}-litellm"
   retention_in_days = 365
   skip_destroy      = false
 }
 
 # ECS Service
 resource "aws_ecs_service" "open_webui" {
-  name                               = "${var.prefix}-svc"
+  name                               = "${var.prefix}-${var.open_webui_domain_route53_zone}-svc"
   cluster                            = aws_ecs_cluster.open_webui.id
   task_definition                    = aws_ecs_task_definition.open_webui.arn
   desired_count                      = var.open_webui_task_count
@@ -183,7 +244,7 @@ resource "aws_ecs_service" "open_webui" {
 
   load_balancer {
     target_group_arn = aws_lb_target_group.ow_http.arn
-    container_name   = "${var.prefix}-ctn"
+    container_name   = "${var.prefix}-${var.open_webui_domain_route53_zone}-ctn"
     container_port   = var.open_webui_port
   }
 
@@ -200,7 +261,7 @@ resource "aws_ecs_service" "open_webui" {
 
 # SG for ECS Service Tasks for Open WebUI
 resource "aws_security_group" "open_webui_sg" {
-  name        = "${var.prefix}-ecs-sg"
+  name        = "${var.prefix}-${var.open_webui_domain_route53_zone}-ecs-sg"
   description = "Security group for open webui ecs service"
   vpc_id      = var.vpc_id
 }

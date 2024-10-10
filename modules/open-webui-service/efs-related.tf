@@ -24,7 +24,7 @@ resource "aws_efs_mount_target" "efs_to_pvt_subnets" {
 
 # SG for EFS
 resource "aws_security_group" "efs_sg" {
-  name        = "${var.prefix}-efs-sg"
+  name        = "${var.prefix}-${var.open_webui_domain_route53_zone}-efs-sg"
   description = "Security group for EFS"
   vpc_id      = var.vpc_id
 }
